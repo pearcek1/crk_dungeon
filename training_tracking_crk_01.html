@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Cricket Tracker</title>
+  <style>
+    body {
+      font-family: Arial;
+      text-align: center;
+      background: #f4f4f4;
+    }
+
+    svg {
+      background: #cfe8cf;
+      border-radius: 50%;
+      margin-top: 20px;
+    }
+
+    .controls {
+      margin-top: 15px;
+    }
+
+    button {
+      padding: 8px 12px;
+      margin: 5px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+
+<h2>CFT</h2>
+
+<div class="controls">
+  <button onclick="setResult('hit')">Hit</button>
+  <button onclick="setResult('miss')">Miss</button>
+  <button onclick="setResult('wicket')">Wicket</button>
+  <button onclick="setResult('leave')">Leave</button>
+  <button onclick="submitSession()">Submit</button>
+</div>
+
+<svg id="field" width="500" height="500" viewBox="0 0 500 500">
+
+  <!-- Field -->
+  <circle cx="250" cy="250" r="240" fill="#6bbf59" stroke="white" stroke-width="3"/>
+  <circle cx="250" cy="250" r="140" fill="none" stroke="white" stroke-dasharray="5,5"/>
+
+  <!-- Pitch -->
+  <rect x="230" y="180" width="30" height="120" fill="#d2b48c" />
+
+  <!-- Creases -->
+  <line x1="230" y1="200" x2="260" y2="200" stroke="white" stroke-width="3"/>
+  <line x1="230" y1="290" x2="260" y2="290" stroke="white" stroke-width="3"/>
+
+  <!-- Stumps -->
+  <line x1="243" y1="170" x2="243" y2="185" stroke="black" stroke-width="1"/>
+  <line x1="245" y1="170" x2="245" y2="185" stroke="black" stroke-width="1"/>
+  <line x1="247" y1="170" x2="247" y2="185" stroke="black" stroke-width="1"/>
+
+  <line x1="243" y1="290" x2="243" y2="305" stroke="black" stroke-width="1"/>
+  <line x1="245" y1="290" x2="245" y2="305" stroke="black" stroke-width="1"/>
+  <line x1="247" y1="290" x2="247" y2="305" stroke="black" stroke-width="1"/>
+
+  <!-- Batter -->
+  <circle cx="240" cy="175" r="5" fill="black"/>
+  <line x1="240" y1="180" x2="240" y2="200" stroke="black" stroke-width="4"/>
+  <line x1="245" y1="185" x2="247" y2="200" stroke="brown" stroke-width="6"/>
+
+  <!-- Layers -->
+  <g id="fielders"></g>
+  <g id="balls"></g>
+
+</svg>
+
+<script>
+let currentResult = "hit";
+let balls = [];
+
+const field = document.getElementById("field");
+const ballsLayer = document.getElementById("balls");
+
+/* ---------------------------
+   BALL TRACKING
+----------------------------*/
+
+function setResult(result) {
+  currentResult = result;
+}
+
+field.addEventListener("click", function(e) {
+  const rect = field.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  const ball = {
+    x,
+    y,
+    result: currentResult,
+    timestamp: Date.now()
+  };
+
+  balls.push(ball);
+  drawBall(ball);
+});
+
+function drawBall(ball) {
+  const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+
+  dot.setAttribute("cx", ball.x);
+  dot.setAttribute("cy", ball.y);
+  dot.setAttribute("r", 5);
+
+  if (ball.result === "hit") dot.setAttribute("fill", "blue");
+  if (ball.result === "miss") dot.setAttribute("fill", "gray");
+  if (ball.result === "wicket") dot.setAttribute("fill", "red");
+  if (ball.result === "leave") dot.setAttribute("fill", "black");
+
+  ballsLayer.appendChild(dot);
+}
+
+/* ---------------------------
+   SESSION STORAGE
+----------------------------*/
+
+function submitSession() {
+  if (balls.length === 0) return;
+
+  let sessions = JSON.parse(localStorage.getItem("sessions")) || [];
+
+  sessions.push({
+    id: Date.now(),
+    balls: balls
+  });
+
+  localStorage.setItem("sessions", JSON.stringify(sessions));
+
+  balls = [];
+  clearField();
+}
+
+function clearField() {
+  ballsLayer.innerHTML = "";
+}
+
+/* ---------------------------
+   FIELDERS (STATIC)
+----------------------------*/
+
+function addFielder(x, y, label = "", size = 12) {
+  const fieldersLayer = document.getElementById("fielders");
+
+  const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+  const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+
+  rect.setAttribute("x", x - size / 2);
+  rect.setAttribute("y", y - size / 2);
+  rect.setAttribute("width", size);
+  rect.setAttribute("height", size);
+
+  rect.setAttribute("fill", "grey");
+  rect.setAttribute("stroke", "white");
+  rect.setAttribute("stroke-width", "1");
+
+  const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+
+  text.textContent = label;
+  text.setAttribute("x", x);
+  text.setAttribute("y", y - 10);
+  text.setAttribute("font-size", "10");
+  text.setAttribute("text-anchor", "middle");
+  text.setAttribute("fill", "#333");
+
+  g.appendChild(rect);
+  g.appendChild(text);
+
+  fieldersLayer.appendChild(g);
+}
+
+/* ---------------------------
+   FIELD SETUP
+----------------------------*/
+
+// On Side
+addFielder(120, 200, "Sq Leg");
+addFielder(140, 260, "Mid Wkt");
+addFielder(180, 330, "Mid On");
+
+// Key positions
+addFielder(240, 280, "Bowler");
+addFielder(250, 150, "WK");
+addFielder(290, 80, "Fine Leg");
+
+// Off Side
+addFielder(380, 200, "Point");
+addFielder(360, 260, "Cover");
+addFielder(340, 330, "Mid Off");
+
+</script>
+
+</body>
+</html>
