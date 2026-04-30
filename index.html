@@ -114,35 +114,24 @@
 </svg>
 
 <!-- ================= SUPABASE (FIXED) ================= -->
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-  // ✅ PUT YOUR REAL VALUES HERE
-  const supabaseUrl = "https://yqcnyhxrwayaxxdiacda.supabase.co";
-  const supabaseKey = "sb_publishable_SihxN3PrdBkIkcOtTVNOcw_STfxGjHh";
-
-  // ✅ FIX: correct client creation
-  const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
-
-  let gameState = "idle";
-
-  async function logEvent(type, runs = 0) {
-    await supabaseClient.from("events").insert([
-      {
-        match_id: "match_1",
-        type: type,
-        runs: runs,
-        ball_x: ball?.x || null,
-        ball_y: ball?.y || null,
-        created_at: new Date().toISOString()
-      }
-    ]);
-  }
 
   let currentResult = null;
   let currentDismissal = null;
   let pitchClickPoints = [];
   let matchData = [];
+
+  // ✅ PUT YOUR REAL VALUES HERE
+  const supabaseUrl = "https://yqcnyhxrwayaxxdiacda.supabase.co";
+  const supabaseKey = "sb_publishable_SihxN3PrdBkIkcOtTVNOcw_STfxGjHh";
+
+  // ✅ FIX: correct client creation
+  const supabaseClient =
+  window.supabase?.createClient?.(supabaseUrl, supabaseKey);
+
+  let gameState = "idle";
 
   const fieldSvg = document.getElementById("fieldSvg");
   const pitchSvg = document.getElementById("pitchSvg");
@@ -296,44 +285,80 @@ fieldSvg.addEventListener("click", async function (e) {
   }
 });
 
-  /* ================= PITCH CLICK ================= */
+/* ================= PITCH CLICK ================= */
 
-  pitchSvg.addEventListener("click", function(e) {
+pitchSvg.addEventListener("click", async function (e) {
 
-    const c = getCoords(e, this);
-    pitchClickPoints.push({ x: c.x, y: c.y });
+  const c = getCoords(e, this);
+  pitchClickPoints.push({ x: c.x, y: c.y });
 
-    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    dot.setAttribute("cx", c.x);
-    dot.setAttribute("cy", c.y);
-    dot.setAttribute("r", 4);
-    dot.setAttribute("fill", "red");
+  // Draw dot immediately
+  const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  dot.setAttribute("cx", c.x);
+  dot.setAttribute("cy", c.y);
+  dot.setAttribute("r", 4);
+  dot.setAttribute("fill", "red");
 
-    pitchBalls.appendChild(dot);
+  pitchBalls.appendChild(dot);
 
-    if (pitchClickPoints.length === 3) {
+  // Once we have 3 points → create full delivery
+  if (pitchClickPoints.length === 3) {
 
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-      path.setAttribute("points",
-        pitchClickPoints.map(p => `${p.x},${p.y}`).join(" ")
-      );
-      path.setAttribute("fill", "none");
-      path.setAttribute("stroke", "red");
-      path.setAttribute("stroke-width", "2");
+    // Draw trajectory line
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    path.setAttribute(
+      "points",
+      pitchClickPoints.map(p => `${p.x},${p.y}`).join(" ")
+    );
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", "red");
+    path.setAttribute("stroke-width", "2");
 
-      pitchPaths.appendChild(path);
+    pitchPaths.appendChild(path);
 
-      matchData.push({
-        type: "pitch",
-        result: currentResult,
-        dismissal: currentDismissal,
-        trajectory: pitchClickPoints,
-        timestamp: new Date().toISOString()
-      });
+    // Build event object (single source of truth)
+    const pitchEvent = {
+      match_id: "match_1",
+      type: "pitch",
+      result: currentResult,
+      dismissal: currentDismissal,
+      trajectory: pitchClickPoints,
+      timestamp: new Date().toISOString()
+    };
 
-      pitchClickPoints = [];
+    // Store locally (for replay / download)
+    matchData.push(pitchEvent);
+
+    // Store in Supabase (persistent storage)
+    const { error } = await supabaseClient
+      .from("events")
+      .insert([pitchEvent]);
+
+    if (error) {
+      console.error("Supabase pitch insert failed:", error.message);
     }
-  });
+
+    // reset for next ball
+    pitchClickPoints = [];
+  }
+});
+
+/* ================= FIELD SETUP ================= */
+
+// On Side
+addFielder(120, 200, "Sq Leg");
+addFielder(140, 260, "Mid Wkt");
+addFielder(180, 330, "Mid On");
+
+// Key
+addFielder(240, 280, "Bowler");
+addFielder(250, 150, "WK");
+addFielder(290, 80, "Fine Leg");
+
+// Off Side
+addFielder(380, 200, "Point");
+addFielder(360, 260, "Cover");
+addFielder(340, 330, "Mid Off");
 
 </script>
 
