@@ -1,0 +1,16 @@
+{
+  "name": "Cricket Tracker",
+  "short_name": "Cricket",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2e7d32",
+  "icons": [
+    {
+      "src": "./favicon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
