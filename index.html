@@ -115,7 +115,6 @@
 
 <!-- ================= SUPABASE (FIXED) ================= -->
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
   // ✅ PUT YOUR REAL VALUES HERE
@@ -152,7 +151,35 @@
   const pitchPaths = document.getElementById("pitchPaths");
   const dismissalOptions = document.getElementById("dismissalOptions");
 
-  /* ================= UTILITIES ================= */
+/* ================= Add Fielders ================= */
+
+function addFielder(x, y, label = "", size = 12) {
+
+  const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+  const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  rect.setAttribute("x", x - size / 2);
+  rect.setAttribute("y", y - size / 2);
+  rect.setAttribute("width", size);
+  rect.setAttribute("height", size);
+  rect.setAttribute("fill", "grey");
+  rect.setAttribute("stroke", "white");
+
+  const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  text.textContent = label;
+  text.setAttribute("x", x);
+  text.setAttribute("y", y - 10);
+  text.setAttribute("font-size", "10");
+  text.setAttribute("text-anchor", "middle");
+  text.setAttribute("fill", "#333");
+
+  g.appendChild(rect);
+  g.appendChild(text);
+
+  document.getElementById("fielders").appendChild(g);
+}
+
+  
 
   function hideAll() {
     fieldSvg.classList.add("hidden");
@@ -213,38 +240,61 @@
     if (result === "wicket") dismissalOptions.classList.remove("hidden");
   }
 
-  function selectDismissal(type, btn) {
-    currentDismissal = type;
+function selectDismissal(type, btn) {
+  currentDismissal = type;
 
-    clearActiveButtons();
-    btn.classList.add("active");
+  clearActiveButtons();
+  btn.classList.add("active");
 
-    hideAll();
+  hideAll();
+
+  if (type === "caught" || type === "runout") {
+    fieldSvg.classList.remove("hidden");
   }
 
+  if (type === "bowled" || type === "lbw") {
+    pitchSvg.classList.remove("hidden");
+  }
+}
+
   /* ================= FIELD CLICK ================= */
+  
+fieldSvg.addEventListener("click", async function (e) {
 
-  fieldSvg.addEventListener("click", function(e) {
+  const c = getCoords(e, this);
 
-    const c = getCoords(e, this);
+  // 1. Draw dot locally
+  const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  dot.setAttribute("cx", c.x);
+  dot.setAttribute("cy", c.y);
+  dot.setAttribute("r", 5);
+  dot.setAttribute("fill", "blue");
 
-    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    dot.setAttribute("cx", c.x);
-    dot.setAttribute("cy", c.y);
-    dot.setAttribute("r", 5);
-    dot.setAttribute("fill", "blue");
+  fieldBalls.appendChild(dot);
 
-    fieldBalls.appendChild(dot);
+  // 2. Build event object once (reused locally + DB)
+  const eventData = {
+    match_id: "match_1",
+    type: "field",
+    result: currentResult,
+    dismissal: currentDismissal,
+    x: c.x,
+    y: c.y,
+    timestamp: new Date().toISOString()
+  };
 
-    matchData.push({
-      type: "field",
-      result: currentResult,
-      dismissal: currentDismissal,
-      x: c.x,
-      y: c.y,
-      timestamp: new Date().toISOString()
-    });
-  });
+  // 3. Store locally (your existing behaviour)
+  matchData.push(eventData);
+
+  // 4. Send to Supabase
+  const { error } = await supabaseClient
+    .from("events")
+    .insert([eventData]);
+
+  if (error) {
+    console.error("Supabase insert failed:", error.message);
+  }
+});
 
   /* ================= PITCH CLICK ================= */
 
@@ -284,20 +334,6 @@
       pitchClickPoints = [];
     }
   });
-
-	/* ================= FIELD SETUP ================= */
-
-addFielder(120, 200, "Sq Leg");
-addFielder(140, 260, "Mid Wkt");
-addFielder(180, 330, "Mid On");
-
-addFielder(240, 280, "Bowler");
-addFielder(250, 150, "WK");
-addFielder(290, 80, "Fine Leg");
-
-addFielder(380, 200, "Point");
-addFielder(360, 260, "Cover");
-addFielder(340, 330, "Mid Off");
 
 </script>
 
