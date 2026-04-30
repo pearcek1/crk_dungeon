@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Cricket Tracker</title>
+	
   <style>
     body {
       font-family: Arial;
@@ -11,19 +12,32 @@
 
     svg {
       background: #cfe8cf;
-      border-radius: 50%;
+      border-radius: 10px;
       margin-top: 20px;
     }
 
-    .controls {
-      margin-top: 15px;
-    }
-
     button {
-      padding: 8px 12px;
+      padding: 8px 14px;
       margin: 5px;
       font-size: 16px;
       cursor: pointer;
+      border-radius: 20px;
+      border: none;
+      background: #e0e0e0;
+      transition: 0.2s ease;
+    }
+
+    button:hover {
+      background: #d0d0d0;
+    }
+
+    .active {
+      background: #4CAF50;
+      color: white;
+    }
+
+    .hidden {
+      display: none;
     }
   </style>
 </head>
@@ -32,170 +46,244 @@
 
 <h2>CFT</h2>
 
-<div class="controls">
-  <button onclick="setResult('hit')">Hit</button>
-  <button onclick="setResult('miss')">Miss</button>
-  <button onclick="setResult('wicket')">Wicket</button>
-  <button onclick="setResult('leave')">Leave</button>
-  <button onclick="submitSession()">Submit</button>
+<div>
+  <button class="result-btn" onclick="selectResult('hit', this)">Hit</button>
+  <button class="result-btn" onclick="selectResult('miss', this)">Miss</button>
+  <button class="result-btn" onclick="selectResult('leave', this)">Leave</button>
+  <button class="result-btn" onclick="selectResult('wicket', this)">Wicket</button>
+
+  <button onclick="clearVisuals()">Clear Visuals</button>
+  <button onclick="clearData()">Clear Data</button>
+  <button onclick="downloadData()">Download Data</button>
 </div>
 
-<svg id="field" width="500" height="500" viewBox="0 0 500 500">
+<div id="dismissalOptions" class="hidden">
+  <p>Select dismissal type:</p>
+  <button onclick="selectDismissal('caught', this)">Caught</button>
+  <button onclick="selectDismissal('bowled', this)">Bowled</button>
+  <button onclick="selectDismissal('lbw', this)">LBW</button>
+  <button onclick="selectDismissal('runout', this)">Run Out</button>
+</div>
 
-  <!-- Field -->
+<!-- ================= FIELD VIEW ================= -->
+
+<svg id="fieldSvg" width="500" height="500" viewBox="0 0 500 500" class="hidden">
+
   <circle cx="250" cy="250" r="240" fill="#6bbf59" stroke="white" stroke-width="3"/>
   <circle cx="250" cy="250" r="140" fill="none" stroke="white" stroke-dasharray="5,5"/>
 
-  <!-- Pitch -->
   <rect x="230" y="180" width="30" height="120" fill="#d2b48c" />
 
-  <!-- Creases -->
   <line x1="230" y1="200" x2="260" y2="200" stroke="white" stroke-width="3"/>
   <line x1="230" y1="290" x2="260" y2="290" stroke="white" stroke-width="3"/>
 
-  <!-- Stumps -->
-  <line x1="243" y1="170" x2="243" y2="185" stroke="black" stroke-width="1"/>
-  <line x1="245" y1="170" x2="245" y2="185" stroke="black" stroke-width="1"/>
-  <line x1="247" y1="170" x2="247" y2="185" stroke="black" stroke-width="1"/>
+  <line x1="243" y1="170" x2="243" y2="185" stroke="black"/>
+  <line x1="245" y1="170" x2="245" y2="185" stroke="black"/>
+  <line x1="247" y1="170" x2="247" y2="185" stroke="black"/>
 
-  <line x1="243" y1="290" x2="243" y2="305" stroke="black" stroke-width="1"/>
-  <line x1="245" y1="290" x2="245" y2="305" stroke="black" stroke-width="1"/>
-  <line x1="247" y1="290" x2="247" y2="305" stroke="black" stroke-width="1"/>
+  <line x1="243" y1="290" x2="243" y2="305" stroke="black"/>
+  <line x1="245" y1="290" x2="245" y2="305" stroke="black"/>
+  <line x1="247" y1="290" x2="247" y2="305" stroke="black"/>
 
-  <!-- Batter -->
   <circle cx="240" cy="175" r="5" fill="black"/>
   <line x1="240" y1="180" x2="240" y2="200" stroke="black" stroke-width="4"/>
   <line x1="245" y1="185" x2="247" y2="200" stroke="brown" stroke-width="6"/>
 
-  <!-- Layers -->
   <g id="fielders"></g>
-  <g id="balls"></g>
+  <g id="fieldBalls"></g>
+
 
 </svg>
 
+<!-- ================= PITCH VIEW ================= -->
+
+<svg id="pitchSvg" width="300" height="500" viewBox="0 0 300 500" class="hidden">
+
+  <rect x="120" y="50" width="60" height="400" fill="#d2b48c" stroke="black"/>
+
+  <line x1="120" y1="100" x2="180" y2="100" stroke="white" stroke-width="3"/>
+  <line x1="120" y1="400" x2="180" y2="400" stroke="white" stroke-width="3"/>
+  
+  <line x1="144" y1="20" x2="144" y2="60" stroke="black" stroke-width="3"/>
+  <line x1="150" y1="20" x2="150" y2="60" stroke="black" stroke-width="3"/>
+  <line x1="156" y1="20" x2="156" y2="60" stroke="black" stroke-width="3"/>
+
+  <g id="pitchBalls"></g>
+  <g id="pitchPaths"></g>
+
+</svg>
+
+<!-- ================= SUPABASE (FIXED) ================= -->
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <script>
-let currentResult = "hit";
-let balls = [];
+  // ✅ PUT YOUR REAL VALUES HERE
+  const supabaseUrl = "https://yqcnyhxrwayaxxdiacda.supabase.co";
+  const supabaseKey = "sb_publishable_SihxN3PrdBkIkcOtTVNOcw_STfxGjHh";
 
-const field = document.getElementById("field");
-const ballsLayer = document.getElementById("balls");
+  // ✅ FIX: correct client creation
+  const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
-/* ---------------------------
-   BALL TRACKING
-----------------------------*/
+  let gameState = "idle";
 
-function setResult(result) {
-  currentResult = result;
-}
+  async function logEvent(type, runs = 0) {
+    await supabaseClient.from("events").insert([
+      {
+        match_id: "match_1",
+        type: type,
+        runs: runs,
+        ball_x: ball?.x || null,
+        ball_y: ball?.y || null,
+        created_at: new Date().toISOString()
+      }
+    ]);
+  }
 
-field.addEventListener("click", function(e) {
-  const rect = field.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
+  let currentResult = null;
+  let currentDismissal = null;
+  let pitchClickPoints = [];
+  let matchData = [];
 
-  const ball = {
-    x,
-    y,
-    result: currentResult,
-    timestamp: Date.now()
-  };
+  const fieldSvg = document.getElementById("fieldSvg");
+  const pitchSvg = document.getElementById("pitchSvg");
+  const fieldBalls = document.getElementById("fieldBalls");
+  const pitchBalls = document.getElementById("pitchBalls");
+  const pitchPaths = document.getElementById("pitchPaths");
+  const dismissalOptions = document.getElementById("dismissalOptions");
 
-  balls.push(ball);
-  drawBall(ball);
-});
+  /* ================= UTILITIES ================= */
 
-function drawBall(ball) {
-  const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  function hideAll() {
+    fieldSvg.classList.add("hidden");
+    pitchSvg.classList.add("hidden");
+  }
 
-  dot.setAttribute("cx", ball.x);
-  dot.setAttribute("cy", ball.y);
-  dot.setAttribute("r", 5);
+  function clearActiveButtons() {
+    document.querySelectorAll("button").forEach(btn => {
+      btn.classList.remove("active");
+    });
+  }
 
-  if (ball.result === "hit") dot.setAttribute("fill", "blue");
-  if (ball.result === "miss") dot.setAttribute("fill", "gray");
-  if (ball.result === "wicket") dot.setAttribute("fill", "red");
-  if (ball.result === "leave") dot.setAttribute("fill", "black");
+  function getCoords(evt, svg) {
+    const pt = svg.createSVGPoint();
+    pt.x = evt.clientX;
+    pt.y = evt.clientY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  }
 
-  ballsLayer.appendChild(dot);
-}
+  function clearVisuals() {
+    fieldBalls.innerHTML = "";
+    pitchBalls.innerHTML = "";
+    pitchPaths.innerHTML = "";
+  }
 
-/* ---------------------------
-   SESSION STORAGE
-----------------------------*/
+  /* ================= DATA ================= */
 
-function submitSession() {
-  if (balls.length === 0) return;
+  function clearData() {
+    matchData = [];
+    console.log("Data cleared");
+  }
 
-  let sessions = JSON.parse(localStorage.getItem("sessions")) || [];
+  function downloadData() {
+    const dataStr = JSON.stringify(matchData, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "match_data.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
-  sessions.push({
-    id: Date.now(),
-    balls: balls
+  /* ================= RESULT SELECTION ================= */
+
+  function selectResult(result, btn) {
+    currentResult = result;
+    currentDismissal = null;
+
+    clearActiveButtons();
+    btn.classList.add("active");
+
+    hideAll();
+    dismissalOptions.classList.add("hidden");
+
+    if (result === "hit") fieldSvg.classList.remove("hidden");
+    if (result === "miss" || result === "leave") pitchSvg.classList.remove("hidden");
+    if (result === "wicket") dismissalOptions.classList.remove("hidden");
+  }
+
+  function selectDismissal(type, btn) {
+    currentDismissal = type;
+
+    clearActiveButtons();
+    btn.classList.add("active");
+
+    hideAll();
+  }
+
+  /* ================= FIELD CLICK ================= */
+
+  fieldSvg.addEventListener("click", function(e) {
+
+    const c = getCoords(e, this);
+
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("cx", c.x);
+    dot.setAttribute("cy", c.y);
+    dot.setAttribute("r", 5);
+    dot.setAttribute("fill", "blue");
+
+    fieldBalls.appendChild(dot);
+
+    matchData.push({
+      type: "field",
+      result: currentResult,
+      dismissal: currentDismissal,
+      x: c.x,
+      y: c.y,
+      timestamp: new Date().toISOString()
+    });
   });
 
-  localStorage.setItem("sessions", JSON.stringify(sessions));
+  /* ================= PITCH CLICK ================= */
 
-  balls = [];
-  clearField();
-}
+  pitchSvg.addEventListener("click", function(e) {
 
-function clearField() {
-  ballsLayer.innerHTML = "";
-}
+    const c = getCoords(e, this);
+    pitchClickPoints.push({ x: c.x, y: c.y });
 
-/* ---------------------------
-   FIELDERS (STATIC)
-----------------------------*/
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("cx", c.x);
+    dot.setAttribute("cy", c.y);
+    dot.setAttribute("r", 4);
+    dot.setAttribute("fill", "red");
 
-function addFielder(x, y, label = "", size = 12) {
-  const fieldersLayer = document.getElementById("fielders");
+    pitchBalls.appendChild(dot);
 
-  const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    if (pitchClickPoints.length === 3) {
 
-  const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      path.setAttribute("points",
+        pitchClickPoints.map(p => `${p.x},${p.y}`).join(" ")
+      );
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "red");
+      path.setAttribute("stroke-width", "2");
 
-  rect.setAttribute("x", x - size / 2);
-  rect.setAttribute("y", y - size / 2);
-  rect.setAttribute("width", size);
-  rect.setAttribute("height", size);
+      pitchPaths.appendChild(path);
 
-  rect.setAttribute("fill", "grey");
-  rect.setAttribute("stroke", "white");
-  rect.setAttribute("stroke-width", "1");
+      matchData.push({
+        type: "pitch",
+        result: currentResult,
+        dismissal: currentDismissal,
+        trajectory: pitchClickPoints,
+        timestamp: new Date().toISOString()
+      });
 
-  const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-
-  text.textContent = label;
-  text.setAttribute("x", x);
-  text.setAttribute("y", y - 10);
-  text.setAttribute("font-size", "10");
-  text.setAttribute("text-anchor", "middle");
-  text.setAttribute("fill", "#333");
-
-  g.appendChild(rect);
-  g.appendChild(text);
-
-  fieldersLayer.appendChild(g);
-}
-
-/* ---------------------------
-   FIELD SETUP
-----------------------------*/
-
-// On Side
-addFielder(120, 200, "Sq Leg");
-addFielder(140, 260, "Mid Wkt");
-addFielder(180, 330, "Mid On");
-
-// Key positions
-addFielder(240, 280, "Bowler");
-addFielder(250, 150, "WK");
-addFielder(290, 80, "Fine Leg");
-
-// Off Side
-addFielder(380, 200, "Point");
-addFielder(360, 260, "Cover");
-addFielder(340, 330, "Mid Off");
+      pitchClickPoints = [];
+    }
+  });
 
 </script>
 
